@@ -24,16 +24,31 @@
 #define TESTBENCH_H
 
 // This macro is used to allow easier parsing of all the checks
-#define CHECK(TB, COND, MSG) tb->check(TB, COND, MSG)
+#define CHECK_3(TB, COND, MSG) tb->formal_check(TB, COND, MSG)
+#define CHECK_4(TB, COND, MSG, TICK) tb->formal_check(TB, COND, MSG, TICK)
+#define CHECK_X(x, TB, COND, MSG, TICK, FUNC, ...) FUNC
+#define CHECK(...) CHECK_X(,##__VA_ARGS__,\
+                           CHECK_4(__VA_ARGS__),  \
+                           CHECK_3(__VA_ARGS__)   \
+                          )
 
 template<class Module> class Testbench {
 public:
   unsigned long tickcount;
+
   Module * core;
   VerilatedVcdC * trace;
+
   bool success;
+
   const char * testdata_path;
+
   bool debug_log;
+
+  int num_conditions;
+  bool * conditions;
+  int * err_cycles;
+  int cycle;
 
   Testbench() {
     this->tickcount = 0;
@@ -41,6 +56,10 @@ public:
     this->success = true;
     this->testdata_path = NULL;
     this->debug_log = false;
+
+    this->conditions = NULL;
+    this->err_cycles = NULL;
+    this->cycle = 0;
   }
 
   ~Testbench() {
@@ -49,6 +68,15 @@ public:
     this->trace = NULL;
     delete this->core;
     this->core = NULL;
+
+    if(this->conditions != NULL) {
+      delete this->conditions;
+      this->conditions = NULL;
+    }
+    if(this->err_cycles != NULL) {
+      delete this->err_cycles;
+      this->err_cycles = NULL;
+    }
   }
 
   void open_trace(const char * path) {
@@ -63,8 +91,13 @@ public:
     this->debug_log = debug_log;
   }
 
+  virtual void reset() {
+    this->reset_conditions();
+  }
+
   void tick() {
     this->tickcount += 1;
+    this->cycle += 1;
 
     core->clk_i = 0;
     core->eval();
@@ -94,12 +127,15 @@ public:
     fclose(f);
   }
 
-  void check(const char * testbench, bool condition, const char * msg) {
+  void formal_check(const char * testbench, bool condition, const char * msg, int tick = -1) {
     if(this->testdata_path != NULL) {
       FILE * f = fopen(this->testdata_path, "a");
       if(condition) {
         fprintf(f, "%s;%d\n", testbench, true);
       } else {
+        if(tick != -1) {
+          fprintf(f, "[tick(%d)]: ", tick);
+        }
         fprintf(f, "%s;%d;%s\n", testbench, false, msg);
       }
       fclose(f);
@@ -109,12 +145,38 @@ public:
       if(condition) {
         printf("OK\n");
       } else {
+        if(tick != -1) {
+          printf("[tick(%d)]: ", tick);
+        }
         printf("%s\n", msg);
       }
     }
 
     if(!condition) {
         this->success = false;
+    }
+  }
+
+  void init_conditions(int num_conditions) {
+    this->num_conditions = num_conditions;
+    this->conditions = new bool[num_conditions];
+    this->err_cycles = new int[num_conditions];
+  }
+
+  void reset_conditions() {
+    if(this->conditions != NULL && this->err_cycles != NULL) {
+      for(int i = 0; i < this->num_conditions; i++) {
+        this->conditions[i] = true;
+        this->err_cycles[i] = -1;
+      } 
+    }
+    this->cycle = 0;
+  }
+
+  void check(int cond_id, bool condition) {
+    this->conditions[cond_id] &= condition;
+    if(!condition && (this->err_cycles[cond_id] == -1)) {
+      this->err_cycles[cond_id] = this->cycle;
     }
   }
 };

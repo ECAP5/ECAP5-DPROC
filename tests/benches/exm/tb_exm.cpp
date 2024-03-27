@@ -34,6 +34,9 @@
 class TB_Exm : public Testbench<Vtb_exm> {
 public:
   void reset() {
+    Testbench<Vtb_exm>::reset();
+
+    this->_nop();
     this->core->rst_i = 1;
     for(int i = 0; i < 5; i++) {
       this->tick();
@@ -211,11 +214,28 @@ public:
   }
 };
 
+enum CondId {
+  COND_result,
+  COND_branch,
+  COND_output_valid,
+  __CondIdEnd
+};
+
 void tb_exm_alu_add(TB_Exm * tb) {
   Vtb_exm * core = tb->core;
   core->testcase = 1;
+
+  // The following actions are performed in this test :
+  //    tick 0. Set inputs for ADD
+  //    tick 1. Set inputs for nop (core outputs result of ADD)
+
+  //=================================
+  //      Tick (0)
+  
   tb->reset();
-  tb->_nop();
+  
+  //`````````````````````````````````
+  //      Set inputs
   
   core->input_valid_i = 1;
   core->output_ready_i = 1;
@@ -224,23 +244,41 @@ void tb_exm_alu_add(TB_Exm * tb) {
   uint32_t operand2 = rand();
   uint8_t result_addr = rand() % 32;
   tb->_add(operand1, operand2, result_addr);
+
+  //=================================
+  //      Tick (1)
+  
   tb->tick();
 
+  //`````````````````````````````````
+  //      Set inputs
+  
+  tb->_nop();
+
+  //`````````````````````````````````
+  //      Checks 
+  
+  uint32_t result = ((int32_t)operand1 + (int32_t)operand2);
+  tb->check(COND_result,       (core->result_o        ==  result)  &&
+                               (core->result_write_o  ==  1)       &&
+                               (core->result_addr_o   ==  result_addr));
+  tb->check(COND_branch,       (core->branch_o        ==  0));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  1));
+
+  //`````````````````````````````````
+  //      Formal Checks 
+  
   CHECK("tb_exm.alu.ADD_01",
-      (core->result_o == ((int32_t)operand1 + (int32_t)operand2)),
-      "Failed to execute ALU_ADD operation");
+      tb->conditions[COND_result],
+      "Failed to implement the result protocol", tb->err_cycles[COND_result]);
+
   CHECK("tb_exm.alu.ADD_02",
-      (core->result_write_o == 1),
-      "Failed to output the result write");
+      tb->conditions[COND_branch],
+      "Failed to implement the branch protocol", tb->err_cycles[COND_branch]);
+
   CHECK("tb_exm.alu.ADD_03",
-      (core->result_addr_o == result_addr),
-      "Failed to output the result address");
-  CHECK("tb_exm.alu.ADD_04",
-      (core->branch_o == 0),
-      "Failed to output branch");
-  CHECK("tb_exm.alu.ADD_05",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
+      tb->conditions[COND_output_valid],
+      "Failed to implement the output_valid_o", tb->err_cycles[COND_output_valid]);
 }
 
 void tb_exm_alu_sub(TB_Exm * tb) {
@@ -1297,6 +1335,7 @@ int main(int argc, char ** argv, char ** env) {
   tb->open_trace("waves/exm.vcd");
   tb->open_testdata("testdata/exm.csv");
   tb->set_debug_log(verbose);
+  tb->init_conditions(__CondIdEnd);
 
   /************************************************************/
 

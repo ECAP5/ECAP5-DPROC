@@ -37,12 +37,15 @@
 class TB_Lsm : public Testbench<Vtb_lsm> {
 public:
   void reset() {
+    Testbench<Vtb_lsm>::reset();
+
     this->_nop();
     this->core->rst_i = 1;
     for(int i = 0; i < 5; i++) {
       this->tick();
     }
     this->core->rst_i = 0;
+    this->cycle = 0;
   }
 
   void _nop() {
@@ -113,785 +116,849 @@ public:
     this->core->sel_i = 0xF;
     this->core->reg_write_i = 0;
   }
+  
+  void _bypass(uint32_t alu_result, uint8_t write, uint8_t reg_addr) {
+    this->_nop();
+    this->core->enable_i = 0;
+    this->core->alu_result_i = alu_result;
+    this->core->reg_write_i = write;
+    this->core->reg_addr_i = reg_addr;
+  }
+};
+
+enum CondId {
+  COND_state,
+  COND_input_ready,
+  COND_wishbone,
+  COND_register,
+  COND_output_valid,
+  __CondIdEnd
 };
 
 void tb_lsm_no_stall_load(TB_Lsm * tb) {
   Vtb_lsm * core = tb->core;
   core->testcase = 1;
+
+  // The following actions are performed in this test :
+  //    tick 0. Set the inputs to request a LH 
+  //    tick 1. Acknowledge the request with reponse data and set the inputs to request a nop
+  //    tick 2. Nothing (core latches response data)
+  //    tick 3. Nothing (core outputs result of LH)
+  //    tick 4. Nothing (core outputs result of nop)
+
+  //=================================
+  //      Tick (0)
+  
   tb->reset();
 
-  core->wb_stall_i = 0;
-  core->input_valid_i = 1;
-
-  // During reset
-
-  CHECK("tb_lsm.no_stall.LOAD_01",
-      (core->tb_lsm->dut->state_q == 0),
-      "Failed to reset to the IDLE state");
-
-  CHECK("tb_lsm.no_stall.LOAD_28",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to initialize the memory interface");
+  tb->check(COND_state,     (core->tb_lsm->dut->state_q  ==  0));
+  tb->check(COND_wishbone,  (core->wb_stb_o              ==  0)    &&
+                            (core->wb_cyc_o              ==  0));  
 
   // LH
+
+  //`````````````````````````````````
+  //      Set inputs
+  
+  core->wb_stall_i = 0;
+  core->input_valid_i = 1;
 
   uint32_t addr = rand();
   uint32_t reg_addr = 1 + rand() % 31;
   tb->_lh(addr, reg_addr);
+
+  //=================================
+  //      Tick (1)
+
   tb->tick();
-  tb->_nop();
 
-  CHECK("tb_lsm.no_stall.LOAD_04",
-      (core->reg_write_o == 1),
-      "Failed to set reg_write_o");
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_state,         (core->tb_lsm->dut->state_q  ==  1));         
+  tb->check(COND_input_ready,   (core->input_ready_o         ==  1));         
+  tb->check(COND_wishbone,      (core->wb_adr_o              ==  addr) &&
+                                (core->wb_we_o               ==  0)    &&
+                                (core->wb_sel_o              ==  3)    &&
+                                (core->wb_stb_o              ==  1)    &&
+                                (core->wb_cyc_o              ==  1));  
+  tb->check(COND_register,      (core->reg_write_o           ==  1)    &&
+                                (core->reg_addr_o            ==  reg_addr));  
+  tb->check(COND_output_valid,  (core->output_valid_o        ==  0));         
 
-  CHECK("tb_lsm.no_stall.LOAD_05",
-      (core->reg_addr_o == reg_addr),
-      "Failed to set reg_addr_o");
-
-  CHECK("tb_lsm.no_stall.LOAD_06",
-      (core->tb_lsm->dut->state_q == 1),
-      "Failed to switch to the REQUEST state");
-
-  CHECK("tb_lsm.no_stall.LOAD_07",
-      (core->input_ready_o == 1),
-      "Failed to keep input_ready_o asserted input_ready_o");
-
-  CHECK("tb_lsm.no_stall.LOAD_08",
-      (core->wb_stb_o == 1) && (core->wb_cyc_o == 1),
-      "Failed to trigger the memory request");
-
-  CHECK("tb_lsm.no_stall.LOAD_09",
-      (core->wb_adr_o == addr) && (core->wb_we_o == 0),
-      "Failed to trigger a memory read request");
-
-  CHECK("tb_lsm.no_stall.LOAD_10",
-      (core->wb_sel_o == 0x3),
-      "Failed to set the wishbone sel signal");
-
-  CHECK("tb_lsm.no_stall.LOAD_11",
-      (core->output_valid_o == 0),
-      "Failed to invalidate the output");
-
-  // Answer memory request
+  //`````````````````````````````````
+  //      Set inputs
 
   uint32_t data = rand();
   core->wb_ack_i = 1;
   core->wb_dat_i = data;
+
+  tb->_nop();
+
+  //=================================
+  //      Tick (2)
+  
   tb->tick();
 
-  CHECK("tb_lsm.no_stall.LOAD_12",
-      (core->reg_write_o == 1),
-      "Failed to set reg_write_o");
+  //`````````````````````````````````
+  //      Checks 
 
-  CHECK("tb_lsm.no_stall.LOAD_13",
-      (core->reg_addr_o == reg_addr),
-      "Failed to set reg_addr_o");
+  tb->check(COND_state,         (core->tb_lsm->dut->state_q  ==  3));
+  tb->check(COND_input_ready,   (core->input_ready_o         ==  0));
+  tb->check(COND_wishbone,      (core->wb_stb_o              ==  0)    &&
+                                (core->wb_cyc_o              ==  1));  
+  tb->check(COND_register,      (core->reg_write_o           ==  1)    &&
+                                (core->reg_addr_o            ==  reg_addr));  
+  tb->check(COND_output_valid,  (core->output_valid_o        ==  0));
 
-  CHECK("tb_lsm.no_stall.LOAD_14",
-      (core->tb_lsm->dut->state_q == 3),
-      "Failed to switch to the DONE state");
-
-  CHECK("tb_lsm.no_stall.LOAD_15",
-      (core->input_ready_o == 0),
-      "Failed to deassert input_ready_o");
-
-  CHECK("tb_lsm.no_stall.LOAD_16",
-      (core->output_valid_o == 0),
-      "Failed to invalidate the output");
-
-  CHECK("tb_lsm.no_stall.LOAD_29",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 1),
-      "Failed to detect a successfull memory request");
+  //`````````````````````````````````
+  //      Set inputs
 
   core->wb_ack_i = 0;
   core->wb_dat_i = 0;
-  tb->tick();
 
-  // Output the result
-
-  CHECK("tb_lsm.no_stall.LOAD_17",
-      (core->reg_write_o == 1),
-      "Failed to set reg_write_o");
-
-  CHECK("tb_lsm.no_stall.LOAD_18",
-      (core->reg_addr_o == reg_addr),
-      "Failed to set reg_addr_o");
-
-  CHECK("tb_lsm.no_stall.LOAD_19",
-      (core->tb_lsm->dut->state_q == 0),
-      "Failed to switch to the IDLE state");
-
-  CHECK("tb_lsm.no_stall.LOAD_20",
-      (core->input_ready_o == 0),
-      "Failed to deassert input_ready_o");
-
-  CHECK("tb_lsm.no_stall.LOAD_21",
-      (core->reg_data_o == data),
-      "Failed to set reg_data_o");
-
-  CHECK("tb_lsm.no_stall.LOAD_22",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  CHECK("tb_lsm.no_stall.LOAD_30",
-      (core->wb_cyc_o == 0),
-      "Failed to deasssert cyc after successfull memory request");
-
-  // Next instruction (nop)
-
-  tb->tick();
-
-  CHECK("tb_lsm.no_stall.LOAD_23",
-      (core->input_ready_o == 1),
-      "Failed to assert input_ready_o");
-
-  CHECK("tb_lsm.no_stall.LOAD_24",
-      (core->output_valid_o == 1),
-      "Failed to invalidate the output");
-
-  CHECK("tb_lsm.no_stall.LOAD_25",
-      (core->reg_write_o == 0),
-      "Failed to deassert reg_write_o");
+  //=================================
+  //      Tick (3)
   
-  CHECK("tb_lsm.no_stall.LOAD_26",
-      (core->reg_addr_o == 0),
-      "Failed to set reg_addr_o");
+  tb->tick();
 
-  CHECK("tb_lsm.no_stall.LOAD_27",
-      (core->reg_data_o == 0),
-      "Failed to set reg_data_o");
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_state,         (core->tb_lsm->dut->state_q  ==  0));
+  tb->check(COND_input_ready,   (core->input_ready_o         ==  0));
+  tb->check(COND_wishbone,      (core->wb_stb_o              ==  0)        &&
+                                (core->wb_cyc_o              ==  0));  
+  tb->check(COND_register,      (core->reg_write_o           ==  1)        &&
+                                (core->reg_addr_o            ==  reg_addr) &&
+                                (core->reg_data_o            ==  data)); 
+  tb->check(COND_output_valid,  (core->output_valid_o        ==  1));
+
+  //`````````````````````````````````
+  //      Set inputs
+
+  //=================================
+  //      Tick (4)
+  
+  tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+
+  tb->check(COND_state,         (core->tb_lsm->dut->state_q  ==  0));
+  tb->check(COND_input_ready,   (core->input_ready_o         ==  1));
+  tb->check(COND_wishbone,      (core->wb_stb_o              ==  0)    &&
+                                (core->wb_cyc_o              ==  0));  
+  tb->check(COND_register,      (core->reg_write_o           ==  0)    &&
+                                (core->reg_addr_o            ==  0)    &&
+                                (core->reg_data_o            ==  0)); 
+  tb->check(COND_output_valid,  (core->output_valid_o  ==  1));
+
+  //`````````````````````````````````
+  //      Formal Checks 
+
+  CHECK("tb_lsm.no_stall.LOAD_01",
+      tb->conditions[COND_state],
+      "Failed to implement the state machine", tb->err_cycles[COND_state]);
+
+  CHECK("tb_lsm.no_stall.LOAD_02",
+      tb->conditions[COND_input_ready],
+      "Failed to implement the input_ready_o signal", tb->err_cycles[COND_input_ready]);
+
+  CHECK("tb_lsm.no_stall.LOAD_03",
+      tb->conditions[COND_wishbone],
+      "Failed to implement the wishbone protocol", tb->err_cycles[COND_wishbone]);
+
+  CHECK("tb_lsm.no_stall.LOAD_04",
+      tb->conditions[COND_register],
+      "Failed to implement the register protocol", tb->err_cycles[COND_register]);
+
+  CHECK("tb_lsm.no_stall.LOAD_05",
+      tb->conditions[COND_output_valid],
+      "Failed to implement the output_valid_o signal", tb->err_cycles[COND_output_valid]);
 }
 
 void tb_lsm_no_stall_store(TB_Lsm * tb) {
   Vtb_lsm * core = tb->core;
   core->testcase = 2;
+
+  // The following actions are performed in this test :
+  //    tick 0. Set the inputs to request a SW
+  //    tick 1. Acknowledge the request and set the inputs to request a nop
+  //    tick 2. Nothing (core detects end of request)
+  //    tick 3. Nothing (core doesn't output anything)
+
+  //=================================
+  //      Tick (0)
+   
   tb->reset();
 
   core->wb_stall_i = 0;
   core->input_valid_i = 1;
 
   // SW
+  
+  //`````````````````````````````````
+  //      Set inputs
 
   uint32_t addr = rand();
   uint32_t data = rand();
   uint32_t reg_addr = 1 + rand() % 31;
   tb->_sw(addr, data, reg_addr);
+
+  //=================================
+  //      Tick (0)
+    
   tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_state,         (core->tb_lsm->dut->state_q  ==  1));
+  tb->check(COND_input_ready,   (core->input_ready_o         ==  1));
+  tb->check(COND_wishbone,      (core->wb_adr_o              ==  addr) &&
+                                (core->wb_dat_o              ==  data) &&
+                                (core->wb_we_o               ==  1)    &&
+                                (core->wb_sel_o              ==  0xF)  &&
+                                (core->wb_stb_o              ==  1)    &&
+                                (core->wb_cyc_o              ==  1));  
+  tb->check(COND_register,      (core->reg_write_o           ==  0));
+  tb->check(COND_output_valid,  (core->output_valid_o        ==  0));
+
+  //`````````````````````````````````
+  //      Set inputs
+    
+  core->wb_ack_i = 1;
+
   tb->_nop();
 
-  CHECK("tb_lsm.no_stall.STORE_01",
-      (core->reg_write_o == 0),
-      "Failed to set reg_write_o");
-
-  CHECK("tb_lsm.no_stall.STORE_02",
-      (core->tb_lsm->dut->state_q == 1),
-      "Failed to switch to the REQUEST state");
-
-  CHECK("tb_lsm.no_stall.STORE_03",
-      (core->input_ready_o == 1),
-      "Failed to keep asserted input_ready_o");
-
-  CHECK("tb_lsm.no_stall.STORE_04",
-      (core->wb_stb_o == 1) && (core->wb_cyc_o == 1),
-      "Failed to trigger the memory request");
-
-  CHECK("tb_lsm.no_stall.STORE_05",
-      (core->wb_adr_o == addr) && (core->wb_we_o == 1),
-      "Failed to trigger a memory write request");
-
-  CHECK("tb_lsm.no_stall.STORE_06",
-      (core->wb_dat_o == core->write_data_i),
-      "Failed to set the memory write data");
-
-  CHECK("tb_lsm.no_stall.STORE_07",
-      (core->wb_sel_o == 0xF),
-      "Failed to set the wishbone sel signal");
-
-  CHECK("tb_lsm.no_stall.STORE_08",
-      (core->output_valid_o == 0),
-      "Failed to invalidate the output");
-
-  // Answer memory request
-
-  core->wb_ack_i = 1;
+  //=================================
+  //      Tick (1)
+    
   tb->tick();
 
-  CHECK("tb_lsm.no_stall.STORE_10",
-      (core->tb_lsm->dut->state_q == 3),
-      "Failed to switch to the DONE state");
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_state,         (core->tb_lsm->dut->state_q  ==  3));
+  tb->check(COND_input_ready,   (core->input_ready_o         ==  0));
+  tb->check(COND_wishbone,      (core->wb_stb_o              ==  0)    &&
+                                (core->wb_cyc_o              ==  1));  
+  tb->check(COND_register,      (core->reg_write_o           ==  0));
+  tb->check(COND_output_valid,  (core->output_valid_o        ==  0));
 
-  CHECK("tb_lsm.no_stall.STORE_11",
-      (core->input_ready_o == 0),
-      "Failed to deassert input_ready_o");
-
-  CHECK("tb_lsm.no_stall.STORE_12",
-      (core->output_valid_o == 0),
-      "Failed to invalidate the output");
-
-  CHECK("tb_lsm.no_stall.STORE_19",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 1),
-      "Failed to detect a successfull memory request");
-
+  //`````````````````````````````````
+  //      Set inputs
+  
   core->wb_ack_i = 0;
   core->wb_dat_i = 0;
+
+  //=================================
+  //      Tick (2)
+  
   tb->tick();
 
-  // Output the result (none)
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_state,         (core->tb_lsm->dut->state_q  ==  0));
+  tb->check(COND_input_ready,   (core->input_ready_o         ==  0));
+  tb->check(COND_wishbone,      (core->wb_stb_o              ==  0)    &&
+                                (core->wb_cyc_o              ==  0));  
+  tb->check(COND_register,      (core->reg_write_o           ==  0));
+  tb->check(COND_output_valid,  (core->output_valid_o        ==  1));
 
-  CHECK("tb_lsm.no_stall.STORE_14",
-      (core->tb_lsm->dut->state_q == 0),
-      "Failed to switch to the IDLE state");
-
-  CHECK("tb_lsm.no_stall.STORE_15",
-      (core->input_ready_o == 0),
-      "Failed to deassert input_ready_o");
-
-  CHECK("tb_lsm.no_stall.STORE_16",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  tb->tick();
-
+  //`````````````````````````````````
+  //      Set inputs
+    
   // Next instruction
+  
+  //=================================
+  //      Tick (3)
+  
+  tb->tick();
 
-  CHECK("tb_lsm.no_stall.STORE_17",
-      (core->input_ready_o == 1),
-      "Failed to assert input_ready_o");
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_state,         (core->tb_lsm->dut->state_q  ==  0));
+  tb->check(COND_input_ready,   (core->input_ready_o         ==  1));
+  tb->check(COND_wishbone,      (core->wb_stb_o              ==  0)    &&
+                                (core->wb_cyc_o              ==  0));  
+  tb->check(COND_register,      (core->reg_write_o           ==  0));
+  tb->check(COND_output_valid,  (core->output_valid_o        ==  1));
+  
+  //`````````````````````````````````
+  //      Formal Checks 
+  
+  CHECK("tb_lsm.no_stall.STORE_01",
+      tb->conditions[COND_state],
+      "Failed to implement the state machine", tb->err_cycles[COND_state]);
 
-  CHECK("tb_lsm.no_stall.STORE_18",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
+  CHECK("tb_lsm.no_stall.STORE_02",
+      tb->conditions[COND_input_ready],
+      "Failed to implement the input_ready_o signal", tb->err_cycles[COND_input_ready]);
 
-  CHECK("tb_lsm.no_stall.STORE_20",
-      (core->wb_cyc_o == 0),
-      "Failed to deasssert cyc after successfull memory request");
+  CHECK("tb_lsm.no_stall.STORE_03",
+      tb->conditions[COND_wishbone],
+      "Failed to implement the wishbone protocol", tb->err_cycles[COND_wishbone]);
+
+  CHECK("tb_lsm.no_stall.STORE_04",
+      tb->conditions[COND_register],
+      "Failed to implement the register protocol", tb->err_cycles[COND_register]);
+
+  CHECK("tb_lsm.no_stall.STORE_05",
+      tb->conditions[COND_output_valid],
+      "Failed to implement the output_valid_o signal", tb->err_cycles[COND_output_valid]);
 }
 
 void tb_lsm_memory_stall(TB_Lsm * tb) {
   Vtb_lsm * core = tb->core;
   core->testcase = 3;
+
+  // The following actions are performed in this test :
+  //    tick 0. Set the inputs to request a LH with a stalled memory
+  //    tick 1. Nothing (core holds request)
+  //    tick 2. Nothing (core holds request)
+  //    tick 3. Acknowledge the request with reponse data and set the inputs to request a nop
+  //    tick 4. Nothing (core outputs result of LH)
+  //    tick 5. Nothing (core outputs result of nop)
+
+  //=================================
+  //      Tick (0)
+  
   tb->reset();
 
+  // LH
+
+  //`````````````````````````````````
+  //      Set inputs
+  
   // Memory stall
   core->wb_stall_i = 1;
   core->input_valid_i = 1;
 
-  // LH
-
   uint32_t addr = rand();
   uint32_t reg_addr = 1 + rand() % 31;
   tb->_lh(addr, reg_addr);
+
+  //=================================
+  //      Tick (1)
+  
   tb->tick();
+  
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_state,        (core->tb_lsm->dut->state_q  ==  4));
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  1)    &&
+                               (core->wb_cyc_o              ==  1));  
+
+  //`````````````````````````````````
+  //      Set inputs
+  
   tb->_nop();
 
-  // Hold the request
+  //=================================
+  //      Tick (2)
   
-  CHECK("tb_lsm.memory_stall.01",
-      (core->tb_lsm->dut->state_q == 4),
-      "Failed to switch to the MEMORY_STALL state");
-
-  CHECK("tb_lsm.memory_stall.02",
-      (core->wb_stb_o == 1) && (core->wb_cyc_o == 1),
-      "Failed to hold the memory request");
-
   tb->tick();
 
-  // Hold the request
+  //`````````````````````````````````
+  //      Checks 
   
-  CHECK("tb_lsm.memory_stall.03",
-      (core->tb_lsm->dut->state_q == 4),
-      "Failed to stay in the MEMORY_STALL state");
+  tb->check(COND_state,        (core->tb_lsm->dut->state_q  ==  4));
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  1)    &&
+                               (core->wb_cyc_o              ==  1));  
+  tb->check(COND_output_valid, (core->output_valid_o        ==  0));
 
-  CHECK("tb_lsm.memory_stall.04",
-      (core->wb_stb_o == 1) && (core->wb_cyc_o == 1),
-      "Failed to hold the memory request");
-
-  CHECK("tb_lsm.memory_stall.05",
-      (core->output_valid_o == 0),
-      "Failed to validate the output");
-
+  //`````````````````````````````````
+  //      Set inputs
+  
   core->wb_stall_i = 0;
+
+  //=================================
+  //      Tick (3)
+  
   tb->tick();
 
-  // Hold the request
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_state,        (core->tb_lsm->dut->state_q  ==  1));
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  1)    &&
+                               (core->wb_cyc_o              ==  1));  
+  tb->check(COND_output_valid, (core->output_valid_o        ==  0));
 
-  CHECK("tb_lsm.memory_stall.06",
-      (core->wb_stb_o == 1) && (core->wb_cyc_o == 1),
-      "Failed to hold the memory request");
-
-  CHECK("tb_lsm.memory_stall.07",
-      (core->output_valid_o == 0),
-      "Failed to validate the output");
-
-  // Answer to the request
-
+  //`````````````````````````````````
+  //      Set inputs
+  
   uint32_t data = rand();
   core->wb_ack_i = 1;
   core->wb_dat_i = data;
+
+  //=================================
+  //      Tick (4)
+
   tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  0)    &&
+                               (core->wb_cyc_o              ==  1));  
+  tb->check(COND_output_valid, (core->output_valid_o        ==  0));
+
+  //`````````````````````````````````
+  //      Set inputs
+  
   core->wb_ack_i = 0;
   core->wb_dat_i = 0;
 
-  CHECK("tb_lsm.memory_stall.08",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 1),
-      "Failed to hold the memory request");
-
-  CHECK("tb_lsm.memory_stall.09",
-      (core->output_valid_o == 0),
-      "Failed to validate the output");
+  //=================================
+  //      Tick (5)
 
   tb->tick();
 
-  // Output the result
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  0)    &&
+                               (core->wb_cyc_o              ==  0));  
+  tb->check(COND_output_valid, (core->output_valid_o        ==  1));
+  
+  //`````````````````````````````````
+  //      Formal Checks 
 
-  CHECK("tb_lsm.memory_stall.10",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to hold the memory request");
+  CHECK("tb_lsm.memory_stall.01",
+      tb->conditions[COND_state],
+      "Failed to implement the state machine", tb->err_cycles[COND_state]);
 
-  CHECK("tb_lsm.memory_stall.11",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
+  CHECK("tb_lsm.memory_stall.02",
+      tb->conditions[COND_wishbone],
+      "Failed to implement the wishbone protocol", tb->err_cycles[COND_wishbone]);
 
-  tb->tick();
-
-  // Next instruction
+  CHECK("tb_lsm.memory_stall_03",
+      tb->conditions[COND_output_valid],
+      "Failed to implement the output_valid_o signal", tb->err_cycles[COND_output_valid]);
 }
 
 void tb_lsm_memory_wait(TB_Lsm * tb) {
   Vtb_lsm * core = tb->core;
   core->testcase = 4;
+
+  // The following actions are performed in this test :
+  //    tick 0. Set the inputs to request a LH
+  //    tick 1. Set the inputs to request a nop (core waits for response)
+  //    tick 2. Nothing (core waits for response)
+  //    tick 3. Nothing (core waits for response)
+  //    tick 4. Acknowledge the request with reponse data
+  //    tick 5. Nothing (core outputs result of LH)
+  //    tick 6. Nothing (core outputs result of nop)
+
+  //=================================
+  //      Tick (0)
+   
   tb->reset();
 
-  core->input_valid_i = 1;
-
   // LH
+
+  //`````````````````````````````````
+  //      Set inputs
+  
+  core->wb_stall_i = 0;
+  core->input_valid_i = 1;
 
   uint32_t addr = rand();
   uint32_t reg_addr = 1 + rand() % 31;
   tb->_lh(addr, reg_addr);
+
+  //=================================
+  //      Tick (1)
+  
   tb->tick();
+
+  //`````````````````````````````````
+  //      Set inputs
+  
   tb->_nop();
 
+  //=================================
+  //      Tick (2)
+  
   tb->tick();
   
-  // Wait before sending the response
+  //`````````````````````````````````
+  //      Checks 
   
-  CHECK("tb_lsm.memory_wait.01",
-      (core->tb_lsm->dut->state_q == 2),
-      "Failed to switch to the MEMORY_WAIT state");
+  tb->check(COND_state,        (core->tb_lsm->dut->state_q  ==  2));
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  0)  &&
+                               (core->wb_cyc_o              ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o        ==  0));
 
-  CHECK("tb_lsm.memory_wait.02",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 1),
-      "Failed to wait for the memory response");
-
-  CHECK("tb_lsm.memory_wait.03",
-      (core->output_valid_o == 0),
-      "Failed to validate the output");
-
+  //=================================
+  //      Tick (3)
+  
   tb->tick();
 
-  // Wait before sending the response
+  //`````````````````````````````````
+  //      Checks 
   
-  CHECK("tb_lsm.memory_wait.04",
-      (core->tb_lsm->dut->state_q == 2),
-      "Failed to stay in the MEMORY_WAIT state");
-
-  CHECK("tb_lsm.memory_wait.05",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 1),
-      "Failed to wait for the memory response");
-
-  CHECK("tb_lsm.memory_wait.06",
-      (core->output_valid_o == 0),
-      "Failed to validate the output");
-
+  tb->check(COND_state,        (core->tb_lsm->dut->state_q  ==  2));
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  0)  &&
+                               (core->wb_cyc_o              ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o        ==  0));
+  
+  //=================================
+  //      Tick (4)
+  
   tb->tick();
 
-  // Wait before sending the response
+  //`````````````````````````````````
+  //      Checks 
   
-  CHECK("tb_lsm.memory_wait.07",
-      (core->tb_lsm->dut->state_q == 2),
-      "Failed to stay in the MEMORY_WAIT state");
+  tb->check(COND_state,        (core->tb_lsm->dut->state_q  ==  2));
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  0)  &&
+                               (core->wb_cyc_o              ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o        ==  0));
 
-  CHECK("tb_lsm.memory_wait.08",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 1),
-      "Failed to wait for the memory response");
-
-  CHECK("tb_lsm.memory_wait.09",
-      (core->output_valid_o == 0),
-      "Failed to validate the output");
-
+  //`````````````````````````````````
+  //      Set inputs
+  
   // Send the response
 
   uint32_t data = rand();
   core->wb_ack_i = 1;
   core->wb_dat_i = data;
+
+  //=================================
+  //      Tick (5)
+  
   tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  0)  &&
+                               (core->wb_cyc_o              ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o        ==  0));
+
+  //`````````````````````````````````
+  //      Set inputs
+  
   core->wb_ack_i = 0;
   core->wb_dat_i = 0;
 
-  CHECK("tb_lsm.memory_wait.10",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 1),
-      "Failed to hold the memory request");
-
-  CHECK("tb_lsm.memory_wait.11",
-      (core->output_valid_o == 0),
-      "Failed to validate the output");
-
-  tb->tick();
-
-  // Output the result
-
-  CHECK("tb_lsm.memory_wait.12",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to hold the memory request");
-
-  CHECK("tb_lsm.memory_wait.13",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  tb->tick();
+  //=================================
+  //      Tick (6)
   
-  // Next instruction
+  tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_wishbone,     (core->wb_stb_o              ==  0)  &&
+                               (core->wb_cyc_o              ==  0));
+  tb->check(COND_output_valid, (core->output_valid_o        ==  1));
+
+  //`````````````````````````````````
+  //      Formal Checks 
+    
+  CHECK("tb_lsm.memory_wait.01",
+      tb->conditions[COND_state],
+      "Failed to implement the state machine", tb->err_cycles[COND_state]);
+
+  CHECK("tb_lsm.memory_wait.02",
+      tb->conditions[COND_wishbone],
+      "Failed to implement the wishbone protocol", tb->err_cycles[COND_wishbone]);
+
+  CHECK("tb_lsm.memory_wait.03",
+      tb->conditions[COND_output_valid],
+      "Failed to implement the output_valid_o signal", tb->err_cycles[COND_output_valid]);
 }
 
 void tb_lsm_bypass(TB_Lsm * tb) {
   Vtb_lsm * core = tb->core;
   core->testcase = 5;
+
+  // The following actions are performed in this test :
+  //    tick 0. Set the inputs to request a bypass with write
+  //    tick 1. Nothing (core outputs bypass with write)
+  
+  //=================================
+  //      Tick (0)
+  
   tb->reset();
+
+  //`````````````````````````````````
+  //      Set inputs
 
   core->input_valid_i = 1;
 
-  // Bypass
-  core->enable_i = 0;
-  core->reg_write_i = 1;
   uint32_t data = rand();
-  core->alu_result_i = data;
   uint32_t reg_addr = 1 + rand() % 31;
-  core->reg_addr_i = reg_addr;
-  tb->tick();
-  tb->_nop();
+  tb->_bypass(data, 1, reg_addr);
 
+  //=================================
+  //      Tick (1)
+  
+  tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_wishbone,     (core->wb_stb_o        ==  0)        &&
+                               (core->wb_cyc_o        ==  0));
+  tb->check(COND_register,     (core->reg_write_o     ==  1)        && 
+                               (core->reg_addr_o      ==  reg_addr) &&
+                               (core->reg_data_o      ==  data));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  1));
+  
+  //`````````````````````````````````
+  //      Formal Checks 
+  
   CHECK("tb_lsm.bypass.01",
-      (core->reg_write_o == 1),
-      "Failed to set reg_write_o");
+      tb->conditions[COND_wishbone],
+      "Failed to implement the wishbone protocol", tb->err_cycles[COND_wishbone]);
 
   CHECK("tb_lsm.bypass.02",
-      (core->reg_addr_o == reg_addr),
-      "Failed to set reg_addr_i");
+      tb->conditions[COND_register],
+      "Failed to implement the register protocol", tb->err_cycles[COND_register]);
 
   CHECK("tb_lsm.bypass.03",
-      (core->reg_data_o == data),
-      "Failed to set reg_data_o");
-
-  CHECK("tb_lsm.bypass.04",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to not trigger a memory request");
-
-  CHECK("tb_lsm.bypass.05",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  tb->tick();
+      tb->conditions[COND_output_valid],
+      "Failed to implement the output_valid_o signal", tb->err_cycles[COND_output_valid]);
 }
 
 void tb_lsm_bubble(TB_Lsm * tb) {
   Vtb_lsm * core = tb->core;
   core->testcase = 6;
+
+  // The following actions are performed in this test :
+  //    tick 0. Set the inputs to request a bypass with write
+  //    tick 1. Invalidate the input (core outputs bypass)
+  //    tick 2. Nothing (core outputs bubble)
+  
+  //=================================
+  //      Tick (0)
+  
   tb->reset();
 
+  //`````````````````````````````````
+  //      Set inputs
+  
   core->input_valid_i = 1;
 
-  // Bypass
-
-  core->enable_i = 0;
-  core->reg_write_i = 1;
   uint32_t data = rand();
-  core->alu_result_i = data;
   uint32_t reg_addr = 1 + rand() % 31;
-  core->reg_addr_i = reg_addr;
+  tb->_bypass(data, 1, reg_addr);
+
+  //=================================
+  //      Tick (1)
+  
   tb->tick();
 
+  //`````````````````````````````````
+  //      Set inputs
+  
+  core->input_valid_i = 0;
+
+  //=================================
+  //      Tick (2)
+  
+  tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_wishbone,     (core->wb_stb_o        ==  0)        &&
+                               (core->wb_cyc_o        ==  0));
+  tb->check(COND_register,     (core->reg_write_o     ==  0));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  1));
+
+  //`````````````````````````````````
+  //      Formal Checks 
+   
   CHECK("tb_lsm.bubble.01",
-      (core->reg_write_o == 1),
-      "Failed to set reg_write_o");
+      tb->conditions[COND_wishbone],
+      "Failed to implement the wishbone protocol", tb->err_cycles[COND_wishbone]);
 
   CHECK("tb_lsm.bubble.02",
-      (core->reg_addr_o == reg_addr),
-      "Failed to set reg_addr_i");
+      tb->conditions[COND_register],
+      "Failed to implement the register protocol", tb->err_cycles[COND_register]);
 
   CHECK("tb_lsm.bubble.03",
-      (core->reg_data_o == data),
-      "Failed to set reg_data_o");
-
-  CHECK("tb_lsm.bubble.04",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to not trigger a memory request");
-
-  CHECK("tb_lsm.bubble.05",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  core->input_valid_i = 0;
-  tb->tick();
-
-  // Bubble
-
-  CHECK("tb_lsm.bubble.06",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to not trigger a memory request");
-
-  CHECK("tb_lsm.bubble.07",
-      (core->reg_write_o == 0),
-      "Failed to set reg_write_o");
-
-  CHECK("tb_lsm.bubble.08",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  // Bubble
-
-  tb->tick();
-
-  CHECK("tb_lsm.bubble.09",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to not trigger a memory request");
-
-  CHECK("tb_lsm.bubble.10",
-      (core->reg_write_o == 0),
-      "Failed to set reg_write_o");
-
-  CHECK("tb_lsm.bubble.11",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
+      tb->conditions[COND_output_valid],
+      "Failed to implement the output_valid_o signal", tb->err_cycles[COND_output_valid]);
 }
 
 void tb_lsm_back_to_back(TB_Lsm * tb) {
   Vtb_lsm * core = tb->core;
   core->testcase = 7;
-  tb->reset();
-  tb->_nop();
 
+  // The following actions are performed in this test :
+  //    tick 0. Set inputs to request LH
+  //    tick 1. Acknowledge the request with response data and set inputs to request bypass with write
+  //    tick 2. Nothing (core latches response data)
+  //    tick 3. Nothing (core outputs result of LH)
+  //    tick 4. Set inputs to request SB (core outputs result of bypass)
+  //    tick 5. Acknowledge the request and set inputs to resquest bypass with write
+  //    tick 6. Nothing
+  //    tick 7. Nothing (core outputs nothing (SB))
+  //    tick 8. Nothing (core outputs result of bypass)
+
+  //=================================
+  //      Tick (0)
+  
+  tb->reset();
+
+  //`````````````````````````````````
+  //      Set inputs
+  
   core->wb_stall_i = 0;
   core->input_valid_i = 1;
-
-  // LH
 
   uint32_t addr = rand();
   uint32_t reg_addr = 1 + rand() % 31;
   tb->_lh(addr, reg_addr);
+
+  //=================================
+  //      Tick (1)
+  
   tb->tick();
 
-  CHECK("tb_lsm.back_to_back.01",
-      (core->output_valid_o == 0),
-      "Failed to invalidate the output");
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_register,     (core->reg_write_o     ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  0));
 
-  CHECK("tb_lsm.back_to_back.02",
-      (core->reg_write_o == 1),
-      "Failed to assert reg_write_o");
-
-  // Bypass
-
-  core->enable_i = 0;
-  core->reg_write_i = 1;
+  //`````````````````````````````````
+  //      Set inputs
+  
   uint32_t data = rand();
-  core->alu_result_i = data;
   reg_addr = 1 + rand() % 31;
-  core->reg_addr_i = reg_addr;
-
-  // Send the response to LH
+  tb->_bypass(data, 1, reg_addr);
 
   data = rand();
   core->wb_ack_i = 1;
   core->wb_dat_i = data;
+
+  //=================================
+  //      Tick (2)
+  
   tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_register,     (core->reg_write_o     ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  0));
+
+  //`````````````````````````````````
+  //      Set inputs
+  
   core->wb_ack_i = 0;
   core->wb_dat_i = 0;
 
-  CHECK("tb_lsm.back_to_back.03",
-      (core->output_valid_o == 0),
-      "Failed to invalidate the output");
-
-  CHECK("tb_lsm.back_to_back.04",
-      (core->reg_write_o == 1),
-      "Failed to deassert reg_write_o");
-
+  //=================================
+  //      Tick (3)
+  
   tb->tick();
 
-  // Output the result of LH
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_register,     (core->reg_write_o     ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  1));
 
-  CHECK("tb_lsm.back_to_back.05",
-      (core->output_valid_o == 1),
-      "Failed to invalidate the output");
-
-  CHECK("tb_lsm.back_to_back.06",
-      (core->reg_write_o == 1),
-      "Failed to deassert reg_write_o");
-
+  //=================================
+  //      Tick (4)
+  
   tb->tick();
 
-  // Output the result of the bypass
+  //`````````````````````````````````
+  //      Checks 
+  
+  tb->check(COND_register,     (core->reg_write_o     ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  1));
 
-  CHECK("tb_lsm.back_to_back.07",
-      (core->reg_write_o == 1),
-      "Failed to assert reg_write_o");
-
-  CHECK("tb_lsm.back_to_back.08",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  // SB
-
+  //`````````````````````````````````
+  //      Set inputs
+  
   addr = rand();
   data = rand();
   reg_addr = 1 + rand() % 31;
   tb->_sb(addr, data, reg_addr);
+
+  //=================================
+  //      Tick (5)
+  
   tb->tick();
 
-  // Bypass
+  //`````````````````````````````````
+  //      Checks 
 
-  core->enable_i = 0;
-  core->reg_write_i = 1;
+  tb->check(COND_register,     (core->reg_write_o     ==  0));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  0));
+  
+  //`````````````````````````````````
+  //      Set inputs
+  
   data = rand();
-  core->alu_result_i = data;
   reg_addr = 1 + rand() % 31;
-  core->reg_addr_i = reg_addr;
-
-  CHECK("tb_lsm.back_to_back.09",
-      (core->reg_write_o == 0),
-      "Failed to deassert reg_write_o");
-
-  CHECK("tb_lsm.back_to_back.10",
-      (core->output_valid_o == 0),
-      "Failed to invalidate the output");
-
-  // Answer to SB
+  tb->_bypass(data, 1, reg_addr);
 
   core->wb_ack_i = 1;
+
+  //=================================
+  //      Tick (6)
+  
   tb->tick();
+
+  //`````````````````````````````````
+  //      Checks 
+
+  tb->check(COND_register,     (core->reg_write_o     ==  0));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  0));
+
+  //`````````````````````````````````
+  //      Set inputs
+  
   core->wb_ack_i = 0;
 
-  CHECK("tb_lsm.back_to_back.11",
-      (core->reg_write_o == 0),
-      "Failed to deassert reg_write_o");
-
-  CHECK("tb_lsm.back_to_back.12",
-      (core->output_valid_o == 0),
-      "Failed to invalidate the output");
-
+  //=================================
+  //      Tick (7)
+  
   tb->tick();
 
-  // Output the result of SB (none)
+  //`````````````````````````````````
+  //      Checks 
+
+  tb->check(COND_register,     (core->reg_write_o     ==  0));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  1));
+
+  //=================================
+  //      Tick (8)
   
-  CHECK("tb_lsm.back_to_back.13",
-      (core->reg_write_o == 0),
-      "Failed to deassert reg_write_o");
-
-  CHECK("tb_lsm.back_to_back.14",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
   tb->tick();
   
-  // Output the result of bypass
+  //`````````````````````````````````
+  //      Checks 
 
-  CHECK("tb_lsm.back_to_back.15",
-      (core->reg_write_o == 1),
-      "Failed to set reg_write_o");
+  tb->check(COND_register,     (core->reg_write_o     ==  1));
+  tb->check(COND_output_valid, (core->output_valid_o  ==  1));
 
-  CHECK("tb_lsm.back_to_back.16",
-      (core->reg_addr_o == reg_addr),
-      "Failed to set reg_addr_i");
+  //`````````````````````````````````
+  //      Formal Checks 
+   
+  CHECK("tb_lsm.back_to_back.01",
+      tb->conditions[COND_register],
+      "Failed to implement the register protocol", tb->err_cycles[COND_register]);
 
-  CHECK("tb_lsm.back_to_back.17",
-      (core->reg_data_o == data),
-      "Failed to set reg_data_o");
-
-  CHECK("tb_lsm.back_to_back.18",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to not trigger a memory request");
-
-  CHECK("tb_lsm.back_to_back.19",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  // Bypass
-
-  core->enable_i = 0;
-  core->reg_write_i = 1;
-  data = rand();
-  core->alu_result_i = data;
-  reg_addr = 1 + rand() % 31;
-  core->reg_addr_i = reg_addr;
-  tb->tick();
-
-  // Output the result of bypass
-
-  CHECK("tb_lsm.back_to_back.20",
-      (core->reg_write_o == 1),
-      "Failed to set reg_write_o");
-
-  CHECK("tb_lsm.back_to_back.21",
-      (core->reg_addr_o == reg_addr),
-      "Failed to set reg_addr_i");
-
-  CHECK("tb_lsm.back_to_back.22",
-      (core->reg_data_o == data),
-      "Failed to set reg_data_o");
-
-  CHECK("tb_lsm.back_to_back.23",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to not trigger a memory request");
-
-  CHECK("tb_lsm.back_to_back.24",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  // Bypass
-
-  core->enable_i = 0;
-  core->reg_write_i = 1;
-  data = rand();
-  core->alu_result_i = data;
-  reg_addr = 1 + rand() % 31;
-  core->reg_addr_i = reg_addr;
-  tb->tick();
-
-  // Output the result of bypass
-
-  CHECK("tb_lsm.back_to_back.25",
-      (core->reg_write_o == 1),
-      "Failed to set reg_write_o");
-
-  CHECK("tb_lsm.back_to_back.26",
-      (core->reg_addr_o == reg_addr),
-      "Failed to set reg_addr_i");
-
-  CHECK("tb_lsm.back_to_back.27",
-      (core->reg_data_o == data),
-      "Failed to set reg_data_o");
-
-  CHECK("tb_lsm.back_to_back.28",
-      (core->wb_stb_o == 0) && (core->wb_cyc_o == 0),
-      "Failed to not trigger a memory request");
-
-  CHECK("tb_lsm.back_to_back.29",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  // Bypass without reg write
-  tb->_nop();
-  tb->tick();
-
-  // Output the result of the bypass (none)
-
-  CHECK("tb_lsm.back_to_back.30",
-      (core->output_valid_o == 1),
-      "Failed to validate the output");
-
-  CHECK("tb_lsm.back_to_back.31",
-      (core->reg_write_o == 0),
-      "Failed to deassert reg_write_o");
+  CHECK("tb_lsm.back_to_back.02",
+      tb->conditions[COND_output_valid],
+      "Failed to implement the output_valid_o signal", tb->err_cycles[COND_output_valid]);
 }
 
 int main(int argc, char ** argv, char ** env) {
@@ -904,6 +971,7 @@ int main(int argc, char ** argv, char ** env) {
   tb->open_trace("waves/lsm.vcd");
   tb->open_testdata("testdata/lsm.csv");
   tb->set_debug_log(verbose);
+  tb->init_conditions(__CondIdEnd);
 
   /************************************************************/
 
