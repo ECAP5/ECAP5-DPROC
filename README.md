@@ -29,7 +29,7 @@
   </thead>
   <tbody>
     <tr>
-      <td>RISC-V Base Instruction Set implementation</td>
+      <td>RISC-V Base Instruction Set compliance</td>
       <td><a href="https://github.com/ECAP5/ECAP5-DPROC/milestone/1"><samp>v1.0.0</samp></a></td>
       <td>Ongoing</td>
     </tr>
