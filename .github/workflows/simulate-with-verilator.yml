@@ -28,7 +28,7 @@ jobs:
 
     - name: Cache build directory
       if: always()
-      uses: actions/cache/save@v4.0.1
+      uses: actions/cache/save@v4.3.0
       env:
         cache-folder-path: ${{github.workspace}}/build
       with:
@@ -44,7 +44,7 @@ jobs:
 
     - name: Import build directory
       id: import-build
-      uses: actions/cache/restore@v4.0.1
+      uses: actions/cache/restore@v4.3.0
       env:
         cache-folder-path: ${{github.workspace}}/build
       with:
@@ -62,7 +62,7 @@ jobs:
 
     - name: Cache build directory
       if: always()
-      uses: actions/cache/save@v4.0.1
+      uses: actions/cache/save@v4.3.0
       env:
         cache-folder-path: ${{github.workspace}}/build
       with:
@@ -78,7 +78,7 @@ jobs:
 
     - name: Import build directory
       id: import-build
-      uses: actions/cache/restore@v4.0.1
+      uses: actions/cache/restore@v4.3.0
       env:
         cache-folder-path: ${{github.workspace}}/build
       with:
@@ -106,7 +106,7 @@ jobs:
 
     - name: Cache build directory
       if: always()
-      uses: actions/cache/save@v4.0.1
+      uses: actions/cache/save@v4.3.0
       env:
         cache-folder-path: ${{github.workspace}}/build
       with:
@@ -123,7 +123,7 @@ jobs:
 
     - name: Import build directory
       id: import-build
-      uses: actions/cache/restore@v4.0.1
+      uses: actions/cache/restore@v4.3.0
       env:
         cache-folder-path: ${{github.workspace}}/build
       with:
@@ -185,7 +185,7 @@ jobs:
 
     - name: Cache build directory
       if: always()
-      uses: actions/cache/save@v4.0.1
+      uses: actions/cache/save@v4.3.0
       env:
         cache-folder-path: ${{github.workspace}}/build
       with:
@@ -200,7 +200,7 @@ jobs:
     - uses: actions/checkout@v4.1.1
 
     - name: Import build directory
-      uses: actions/cache/restore@v4.0.1
+      uses: actions/cache/restore@v4.3.0
       env:
         cache-folder-path: ${{github.workspace}}/build
       with:
