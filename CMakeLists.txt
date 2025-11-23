@@ -51,7 +51,7 @@ add_dependency(ECAP5_TREQ
 
 add_dependency(ECAP5_DTESTLIB
   GIT ecap5/ecap5-dtestlib
-  TAG tags/v1.0.0)
+  TAG release/v1.1.0)
 
 add_dependency(riscv-tests
   GIT ecap5/riscv-tests
@@ -70,6 +70,8 @@ add_dependency(verilator-cmake
 include(${verilator_cmake_SOURCE_DIR}/cmake/verilator-config.cmake)
 include(${ecap5_treq_SOURCE_DIR}/config.cmake)
 list(APPEND CMAKE_MODULE_PATH "${sphinx_cmake_SOURCE_DIR}/cmake")
+include(${ecap5_dtestlib_SOURCE_DIR}/cmake/lint.cmake)
+include(${ecap5_dtestlib_SOURCE_DIR}/cmake/testbench.cmake)
 
 # Include subdirectories
 
