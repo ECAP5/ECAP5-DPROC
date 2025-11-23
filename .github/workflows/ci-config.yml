@@ -1,10 +1,10 @@
-name: Simulated testing using verilator
+name: ECAP5-DPROC continuous integration
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "release/**" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "release/**" ]
 
 permissions:
   actions: write
@@ -14,7 +14,7 @@ env:
   BUILD_TYPE: Release
   REPORT_ARTIFACT_NAME: ecap5-dproc-report-${{github.run_number}}-${{github.run_attempt}}
   DOCUMENTATION_ARTIFACT_NAME: ecap5-dproc-docs-${{github.run_number}}-${{github.run_attempt}}
-  BUILD_CACHE_KEY: build-directory-${{ github.run_id }}-${{ github.run_attempt }}
+  BUILD_CACHE_KEY: simulation-build-directory-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   prepare:
@@ -113,9 +113,43 @@ jobs:
         path: ${{ env.cache-folder-path }}
         key: ${{ runner.os }}-${{env.BUILD_CACHE_KEY}}
 
-  report:
+  synthesis:
     runs-on: self-hosted
     needs: simulate
+
+    steps:
+    - uses: actions/checkout@v4.1.1
+
+    - name: Import build directory
+      id: import-build
+      uses: actions/cache/restore@v4.3.0
+      env:
+        cache-folder-path: ${{github.workspace}}/build
+      with:
+        path: ${{ env.cache-folder-path }}
+        key: ${{ runner.os }}-${{env.BUILD_CACHE_KEY}}
+
+    - name: Synthesis
+      run: ninja -C ${{github.workspace}}/build synth
+
+    - name: Delete Previous Cache
+      if: ${{ always() && steps.import-build.outputs.cache-hit == 'true'}}
+      run: gh cache delete "${{ runner.os }}-${{env.BUILD_CACHE_KEY}}"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Cache build directory
+      if: always()
+      uses: actions/cache/save@v4.3.0
+      env:
+        cache-folder-path: ${{github.workspace}}/build
+      with:
+        path: ${{ env.cache-folder-path }}
+        key: ${{ runner.os }}-${{env.BUILD_CACHE_KEY}}
+
+  report:
+    runs-on: self-hosted
+    needs: synthesis
     if: always()
 
     steps:
@@ -164,16 +198,17 @@ jobs:
       uses: exuanbo/actions-deploy-gist@v1.1.4
       with:
         token: ${{ secrets.GIST_SECRET }}
-        gist_id: 32195ea7fa70c0218ef3f9952504c59e
+        gist_id: f525ce32a8951303b0892d98a54b8d66
         file_path: build/test-result-badge.json
         file_type: text 
+
 
     - name: Upload traceability result badge
       if: ${{ always() && github.ref == 'refs/heads/main' }}
       uses: exuanbo/actions-deploy-gist@v1.1.4
       with:
         token: ${{ secrets.GIST_SECRET }}
-        gist_id: 32195ea7fa70c0218ef3f9952504c59e
+        gist_id: f525ce32a8951303b0892d98a54b8d66
         file_path: build/traceability-result-badge.json
         file_type: text 
 
