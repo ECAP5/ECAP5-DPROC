@@ -65,11 +65,16 @@ add_dependency(verilator-cmake
   GIT ecap5/verilator-cmake
   TAG tags/v1.0.1)
 
+add_dependency(oss-cad-suite-cmake
+  GIT ecap5/oss-cad-suite-cmake
+  TAG tags/v1.0.0)
+
 # Configure dependencies
 
 include(${verilator_cmake_SOURCE_DIR}/cmake/verilator-config.cmake)
 include(${ecap5_treq_SOURCE_DIR}/config.cmake)
 list(APPEND CMAKE_MODULE_PATH "${sphinx_cmake_SOURCE_DIR}/cmake")
+include(${oss_cad_suite_cmake_SOURCE_DIR}/cmake/oss-cad-suite-config.cmake)
 include(${ecap5_dtestlib_SOURCE_DIR}/cmake/lint.cmake)
 include(${ecap5_dtestlib_SOURCE_DIR}/cmake/testbench.cmake)
 
@@ -77,3 +82,13 @@ include(${ecap5_dtestlib_SOURCE_DIR}/cmake/testbench.cmake)
 
 add_subdirectory(docs)
 add_subdirectory(tests)
+
+# Synthesis
+
+add_synthesis_target(
+  SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/* ${CMAKE_CURRENT_LIST_DIR}/src/include/*
+  TOP_MODULE ecap5_dproc
+  TARGET_FPGA ecp5
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/synth.json)
+add_custom_target(synth DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/synth.json)
+
