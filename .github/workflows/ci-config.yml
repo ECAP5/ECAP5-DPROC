@@ -24,7 +24,11 @@ jobs:
     - uses: actions/checkout@v4.1.1
 
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -GNinja
+      run: cmake -B ${{github.workspace}}/build -GNinja -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} 2>&1 | tee ${{github.workspace}}/cmake.log
+
+    - name: Check versions
+      if: github.event.pull_request.base.ref == 'main'
+      run: (! grep -e "Using .* with unreleased version" ${{github.workspace}}/cmake.log)
 
     - name: Cache build directory
       if: always()
