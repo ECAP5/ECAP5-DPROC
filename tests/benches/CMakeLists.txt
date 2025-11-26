@@ -20,95 +20,85 @@
 # along with ECAP5-DPROC.  If not, see <http://www.gnu.org/licenses/>.
 
 add_testbench(
-  MODULE       registers
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            registers
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       fetch
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            fetch
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       decode
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            decode
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       execute
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            execute
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       loadstore
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            loadstore
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       loadstore 
-  BENCH        loadstore_w_slave 
-  LIBS         instr_wb_slave
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            loadstore 
+  BENCH             loadstore_w_slave 
+  LIBS              ecap5_dproc
+                    ecap5_dtestlib
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       writeback
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            writeback
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       memory
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            memory
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       hazard
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            hazard
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_testbench(
-  MODULE       ecap5_dproc
-  BENCH_DIR    ${BENCH_DIR}
-  LIBS_DIR     ${LIBS_DIR}
-  TESTDATA_DIR ${TESTDATA_DIR}
-  SRC_DIRS     ${SRC_DIRS} 
-  INCLUDE_DIRS ${INCLUDE_DIRS}
+  MODULE            ecap5_dproc
+  LIBS              ecap5_dproc
+  BENCH_DIR         ${BENCH_DIR}
+  TESTDATA_DIR      ${TESTDATA_DIR}
+  TEST_INCLUDE_DIRS ${TEST_INCLUDE_DIRS}
 )
 
 add_custom_target(benches-build DEPENDS ${TEST_BINARIES})
