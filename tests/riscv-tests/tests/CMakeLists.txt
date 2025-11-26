@@ -32,7 +32,7 @@ set(TVM rv32ui) # Target Virtual Machine
 set(TE p)       # Target Environment
 
 # Paths
-set(SOURCE_DIR ${riscv_tests_SOURCE_DIR}/isa/${TVM}/)
+set(SOURCE_DIR ${ecap5_riscv_tests_SOURCE_DIR}/isa/${TVM}/)
 set(ENV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/env/)
 
 # Compile options
@@ -41,9 +41,9 @@ set(CC_OPTS "-static \
             -fvisibility=hidden \
             -nostdlib \
             -nostartfiles")
-set(CC_INCS ${riscv_tests_SOURCE_DIR}/env
+set(CC_INCS ${ecap5_riscv_tests_SOURCE_DIR}/env
             ${ENV_DIR}
-            ${riscv_tests_SOURCE_DIR}/isa/macros/scalar)
+            ${ecap5_riscv_tests_SOURCE_DIR}/isa/macros/scalar)
 
 set(TARGETS simple
             add addi 
