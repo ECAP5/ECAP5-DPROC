@@ -48,7 +48,7 @@ add_dependency(
 
 add_dependency(
   GIT ecap5/verilator-cmake
-  TAG tags/v1.0.1)
+  TAG release/v1.1.0)
 
 add_dependency(
   GIT ecap5/ecap5-treq
