@@ -48,20 +48,20 @@ add_dependency(
 
 add_dependency(
   GIT ecap5/verilator-cmake
-  TAG release/v1.1.0)
+  TAG tags/v1.1.0)
 
 add_dependency(
   GIT ecap5/ecap5-treq
-  TAG release/v3.0.0
+  TAG tags/v3.0.0
   BINARY ecap5-treq)
 
 add_dependency(
   GIT ecap5/oss-cad-suite-cmake
-  TAG release/v2.0.0)
+  TAG tags/v2.0.0)
 
 add_dependency(
   GIT ecap5/ecap5-dtestlib
-  TAG release/v1.1.0)
+  TAG tags/v1.1.0)
 
 add_dependency(
   GIT ecap5/riscv-tests
@@ -105,5 +105,6 @@ if(PROJECT_IS_TOP_LEVEL)
     TOP_MODULE ecap5_dproc
     TARGET_FPGA ecp5
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/synth.json)
+ 
   add_custom_target(synth DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/synth.json)
 endif()
