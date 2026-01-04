@@ -65,7 +65,7 @@ add_dependency(
 
 add_dependency(
   GIT ecap5/riscv-tests
-  TAG master)
+  TAG tags/v1.0.0)
 
 # Define an interface library
 add_library(ecap5_dproc INTERFACE)
