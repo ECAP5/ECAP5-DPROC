@@ -19,6 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with ECAP5-DPROC.  If not, see <http://www.gnu.org/licenses/>.
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # Bench parent directory
 set(BENCH_DIR ${CMAKE_CURRENT_SOURCE_DIR}/benches/)
 # C++ bench include directory
